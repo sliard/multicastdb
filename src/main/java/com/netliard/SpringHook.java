@@ -28,7 +28,7 @@ import com.netliard.activemq.transport.discovery.database.JDBCAdapter;
  * Singleton to get Sring Application Context outside a Bean.
  * 
  * @author Samuel Liard
- *
+ * 
  */
 public class SpringHook implements ApplicationContextAware {
     /**
@@ -36,36 +36,37 @@ public class SpringHook implements ApplicationContextAware {
      */
     private static final Logger LOG = LoggerFactory.getLogger(JDBCAdapter.class);
 
-    
     private static ApplicationContext context;
 
-	  /**
-	   * Spring context injection.
-	   * @param context reference to the ApplicationContext.
-	   */
-	  public void setApplicationContext(ApplicationContext myContext) throws BeansException {
-	      context = myContext;
-	  }
+    /**
+     * Spring context injection.
+     * 
+     * @param context reference to the ApplicationContext.
+     */
+    public void setApplicationContext(ApplicationContext myContext) throws BeansException {
+        context = myContext;
+    }
 
-	  /**
-	   * Get a bean
-	   * @param beanName name of the bean to get.
-	   * @return Object reference to the named bean.
-	   * @throws IllegalArgumentException if spring context is not set
-	   * @throws NoSuchBeanDefinitionException if there is no bean definition with the specified name
-       * @throws BeansException if the bean could not be obtained
-	   */
-	  public static Object getBean(String beanName) {
-	      if(context == null) {
-	          LOG.error("Can't get Spring context");
-              LOG.error("****************************************");
-              LOG.error("** Please insert this bean in your Spring configuration : ");
-              LOG.error("** <bean id=\"sContext\" class=\"com.netliard.SpringHook\"/> ");
-              LOG.error("****************************************");
-              throw new IllegalArgumentException("Can't get com.netliard.SpringHook bean");
-	      }
-	      
-	    return context.getBean(beanName);
-	  }
+    /**
+     * Get a bean
+     * 
+     * @param beanName name of the bean to get.
+     * @return Object reference to the named bean.
+     * @throws IllegalArgumentException if spring context is not set
+     * @throws NoSuchBeanDefinitionException if there is no bean definition with the specified name
+     * @throws BeansException if the bean could not be obtained
+     */
+    public static Object getBean(String beanName) {
+        if (context == null) {
+            LOG.error("Can't get Spring context");
+            LOG.error("****************************************");
+            LOG.error("** Please insert this bean in your Spring configuration : ");
+            LOG.error("** <bean id=\"sContext\" class=\"com.netliard.SpringHook\"/> ");
+            LOG.error("****************************************");
+            throw new IllegalArgumentException("Can't get com.netliard.SpringHook bean");
+        }
+
+        return context.getBean(beanName);
+    }
 
 }

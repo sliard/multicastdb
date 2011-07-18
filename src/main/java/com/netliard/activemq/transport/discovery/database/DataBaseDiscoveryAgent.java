@@ -38,319 +38,320 @@ import org.slf4j.LoggerFactory;
 /**
  * DiscoveryAgent that use a database to get the liste of broker.
  * 
- * I have try to use multicast discovery but in many cloud offer like EC2 
- * multicast UDP didn't work.
+ * I have try to use multicast discovery but in many cloud offer like EC2 multicast UDP didn't work.
  * 
  * @author Samuel Liard
- *
+ * 
  */
 public class DataBaseDiscoveryAgent implements DiscoveryAgent, Runnable {
 
     /**
      * logger.
      */
-	private static final Logger LOG = LoggerFactory.getLogger(DataBaseDiscoveryAgent.class);
+    private static final Logger LOG = LoggerFactory.getLogger(DataBaseDiscoveryAgent.class);
 
-	/**
-	 * Cache list of broker.
-	 */
-	private Map<String, RemoteBrokerData> brokersByService = new ConcurrentHashMap<String, RemoteBrokerData>();
+    /**
+     * Cache list of broker.
+     */
+    private Map<String, RemoteBrokerData> brokersByService = new ConcurrentHashMap<String, RemoteBrokerData>();
 
-	/**
-	 * Name of spring Data Source.
-	 */
-	private String dataSource;
+    /**
+     * Name of spring Data Source.
+     */
+    private String dataSource;
 
-	/**
-	 * Define if agent is started or not.
-	 */
-	private AtomicBoolean started = new AtomicBoolean(false);
-	
-	/**
-	 * Background Thread to scan if new brokers arrived.
-	 */
-	private Thread runner;
-	
-	/**
-	 * MQ listner to add/remove broker.
-	 */
-	private DiscoveryListener discoveryListener;
-	
-	/**
-	 * Local service name (URI).
-	 */
-	private String selfService;
-	
-	/**
-	 * Asynchrone task manager.
-	 */
-	private ExecutorService executor = null;
-	
-	/**
-	 * Time in ms between 2 new broker scan.
-	 */
-	private int scanInterval = 10000;
-	
-	/**
-	 * Time max of last hearbeat broker in ms.
-	 */
-	private int maxDelay = 25000;
-	
-	/**
-	 * Server hostName use for distant client.
-	 */
-	private String hostName;
+    /**
+     * Define if agent is started or not.
+     */
+    private AtomicBoolean started = new AtomicBoolean(false);
 
-	/**
-	 * JDBC link with data base.
-	 */
-	private JDBCAdapter adapter;
+    /**
+     * Background Thread to scan if new brokers arrived.
+     */
+    private Thread runner;
 
-	/**
-	 * Define Broker identifier.
-	 * @return broker identifier
-	 */
-	private String getLocalBrokerKey() {
-		return "lb-" + getHostName();
-	}
-	
-	/**
-	 * Get Data Base link.
-	 * @return Data Base
-	 */
-	private JDBCAdapter getAdapter() {
-		if(adapter == null) {
-			adapter = new JDBCAdapter(dataSource);
-		}
-		return adapter;
-	}
+    /**
+     * MQ listner to add/remove broker.
+     */
+    private DiscoveryListener discoveryListener;
 
-	private String getHostName() {
-		if (hostName == null) {
-			try {
-				InetAddress addr = InetAddress.getLocalHost();
-//				hostName = addr.getHostAddress();
-				hostName = addr.getHostName();
-			} catch (UnknownHostException e) {
-				LOG.warn("Unable to get hostname : " + e.getMessage());
-				hostName = "Unknown";
-			}
-		}
-		return hostName;
-	}
+    /**
+     * Local service name (URI).
+     */
+    private String selfService;
 
-	@Override
-	public void start() throws Exception {
+    /**
+     * Asynchrone task manager.
+     */
+    private ExecutorService executor = null;
 
-		LOG.trace("Start DataBaseDiscoveryAgent");		
-		
-		if (started.compareAndSet(false, true)) {
+    /**
+     * Time in ms between 2 new broker scan.
+     */
+    private int scanInterval = 10000;
 
-			getAdapter().initDB();
-			doAdvertizeSelf();
-			scanBroker();
+    /**
+     * Time max of last hearbeat broker in ms.
+     */
+    private int maxDelay = 25000;
 
-			runner = new Thread(this);
-			runner.setName(this.toString() + ":" + runner.getName());
-			runner.setDaemon(true);
-			runner.start();
-		}
+    /**
+     * Server hostName use for distant client.
+     */
+    private String hostName;
 
-	}
+    /**
+     * JDBC link with data base.
+     */
+    private JDBCAdapter adapter;
 
-	@Override
-	public void stop() throws Exception {
+    /**
+     * Define Broker identifier.
+     * 
+     * @return broker identifier
+     */
+    private String getLocalBrokerKey() {
+        return "lb-" + getHostName();
+    }
 
-		LOG.trace("Stop DataBaseDiscoveryAgent");
+    /**
+     * Get Data Base link.
+     * 
+     * @return Data Base
+     */
+    private JDBCAdapter getAdapter() {
+        if (adapter == null) {
+            adapter = new JDBCAdapter(dataSource);
+        }
+        return adapter;
+    }
 
-		if (started.compareAndSet(true, false)) {
-			if (runner != null) {
-				runner.interrupt();
-			}
-		}
+    private String getHostName() {
+        if (hostName == null) {
+            try {
+                InetAddress addr = InetAddress.getLocalHost();
+                // hostName = addr.getHostAddress();
+                hostName = addr.getHostName();
+            } catch (UnknownHostException e) {
+                LOG.warn("Unable to get hostname : " + e.getMessage());
+                hostName = "Unknown";
+            }
+        }
+        return hostName;
+    }
 
-	}
+    @Override
+    public void start() throws Exception {
 
-	@Override
-	public void run() {
+        LOG.trace("Start DataBaseDiscoveryAgent");
 
-		while (started.get()) {
+        if (started.compareAndSet(false, true)) {
 
-			try {
-				doAdvertizeSelf();
-				scanBroker();
-				Thread.sleep(scanInterval);
-			} catch (InterruptedException e) {
-				LOG.warn("Thread interrupted : " + e.getMessage());
-			}
-		}
-	}
+            getAdapter().initDB();
+            doAdvertizeSelf();
+            scanBroker();
 
-	/**
-	 * Manage local broker.
-	 */
-	private synchronized void doAdvertizeSelf() {
-		if (selfService != null) {
+            runner = new Thread(this);
+            runner.setName(this.toString() + ":" + runner.getName());
+            runner.setDaemon(true);
+            runner.start();
+        }
 
-			RemoteBrokerData selfData = brokersByService.get(getLocalBrokerKey());
+    }
 
-			if (selfData == null) {
-				selfData = new RemoteBrokerData(getLocalBrokerKey(), selfService);
-				selfData.setLocal(true);
-				fireServiceAddEvent(selfData);
-				LOG.trace("Send local broker : {}", selfData);
+    @Override
+    public void stop() throws Exception {
 
-				String serviceWithIp = selfService;
-				int localIndex = serviceWithIp.indexOf("localhost");
+        LOG.trace("Stop DataBaseDiscoveryAgent");
 
-				if (localIndex != -1) {
-					int portIndex = serviceWithIp.indexOf(":", localIndex);
-					serviceWithIp = serviceWithIp.substring(0, localIndex) + getHostName() + serviceWithIp.substring(portIndex);
-				}
+        if (started.compareAndSet(true, false)) {
+            if (runner != null) {
+                runner.interrupt();
+            }
+        }
 
-				RemoteBrokerData selfIpData = new RemoteBrokerData(getLocalBrokerKey(), serviceWithIp);
-				getAdapter().addBroker(selfIpData);
-				getAdapter().updateBroker(selfIpData);
+    }
 
-				brokersByService.put(getLocalBrokerKey(), selfIpData);
-				LOG.trace("Add self broker : {}", selfIpData);
-			} else {
-				selfData.updateHeartBeat();
-				getAdapter().updateBroker(selfData);
-			}
+    @Override
+    public void run() {
 
-		}
-	}
+        while (started.get()) {
 
-	private void scanBroker() {
-		Collection<RemoteBrokerData> allBroker = getAdapter().getAllBroker(maxDelay);
-		RemoteBrokerData[] arrayOfBroker = brokersByService.values().toArray(new RemoteBrokerData[0]);
+            try {
+                doAdvertizeSelf();
+                scanBroker();
+                Thread.sleep(scanInterval);
+            } catch (InterruptedException e) {
+                LOG.warn("Thread interrupted : " + e.getMessage());
+            }
+        }
+    }
 
-		for (RemoteBrokerData broker : arrayOfBroker) {
-			if (!allBroker.contains(broker) && !broker.isLocal()) {
-				fireServiceRemovedEvent(broker);
-				brokersByService.remove(broker.getBrokerName());
-				LOG.trace("Delete broker : {}", broker);
-			}
-		}
+    /**
+     * Manage local broker.
+     */
+    private synchronized void doAdvertizeSelf() {
+        if (selfService != null) {
 
-		for (RemoteBrokerData broker : allBroker) {
-			RemoteBrokerData data = brokersByService.get(broker.getBrokerName());
-			if (data == null) {
-				brokersByService.put(broker.getBrokerName(), broker);
-				fireServiceAddEvent(broker);
-				LOG.trace("Add broker : {}", broker);
-			}
-		}
-	}
+            RemoteBrokerData selfData = brokersByService.get(getLocalBrokerKey());
 
-	private void fireServiceRemovedEvent(RemoteBrokerData data) {
-		if (discoveryListener != null && started.get()) {
-			final DiscoveryEvent event = new DiscoveryEvent(data.getService());
-			event.setBrokerName(data.getBrokerName());
+            if (selfData == null) {
+                selfData = new RemoteBrokerData(getLocalBrokerKey(), selfService);
+                selfData.setLocal(true);
+                fireServiceAddEvent(selfData);
+                LOG.trace("Send local broker : {}", selfData);
 
-			// Have the listener process the event async so that
-			// he does not block this thread since we are doing time sensitive
-			// processing of events.
-			getExecutor().execute(new Runnable() {
-				public void run() {
-					DiscoveryListener discoveryListener = DataBaseDiscoveryAgent.this.discoveryListener;
-					LOG.trace("onServiceRemove send to discovery {} : {}", discoveryListener, event.getServiceName());
-					if (discoveryListener != null) {
-						discoveryListener.onServiceRemove(event);
-					}
-				}
-			});
-		}
-	}
+                String serviceWithIp = selfService;
+                int localIndex = serviceWithIp.indexOf("localhost");
 
-	private void fireServiceAddEvent(RemoteBrokerData data) {
-		if (discoveryListener != null && started.get()) {
+                if (localIndex != -1) {
+                    int portIndex = serviceWithIp.indexOf(":", localIndex);
+                    serviceWithIp = serviceWithIp.substring(0, localIndex) + getHostName() + serviceWithIp.substring(portIndex);
+                }
 
-			String service = data.getService();
-			if (service.contains(getHostName())) {
-				service = service.replaceAll(getHostName(), "localhost");
-			}
+                RemoteBrokerData selfIpData = new RemoteBrokerData(getLocalBrokerKey(), serviceWithIp);
+                getAdapter().addBroker(selfIpData);
+                getAdapter().updateBroker(selfIpData);
 
-			final DiscoveryEvent event = new DiscoveryEvent(service);
-			event.setBrokerName(data.getBrokerName());
+                brokersByService.put(getLocalBrokerKey(), selfIpData);
+                LOG.trace("Add self broker : {}", selfIpData);
+            } else {
+                selfData.updateHeartBeat();
+                getAdapter().updateBroker(selfData);
+            }
 
-			// Have the listener process the event async so that
-			// he does not block this thread since we are doing time sensitive
-			// processing of events.
-			getExecutor().execute(new Runnable() {
-				public void run() {
-					DiscoveryListener discoveryListener = DataBaseDiscoveryAgent.this.discoveryListener;
-					LOG.trace("onServiceAdd send to discovery {} : {}", discoveryListener, event.getServiceName());
-					if (discoveryListener != null) {
-						discoveryListener.onServiceAdd(event);
-					}
-				}
-			});
-		}
-	}
+        }
+    }
 
-	private ExecutorService getExecutor() {
-		if (executor == null) {
-			final String threadName = "Notifier-" + this.toString();
+    private void scanBroker() {
+        Collection<RemoteBrokerData> allBroker = getAdapter().getAllBroker(maxDelay);
+        RemoteBrokerData[] arrayOfBroker = brokersByService.values().toArray(new RemoteBrokerData[0]);
 
-			executor = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new ThreadFactory() {
-				public Thread newThread(Runnable runable) {
-					Thread t = new Thread(runable, threadName);
-					t.setDaemon(true);
-					return t;
-				}
-			});
-		}
-		return executor;
-	}
+        for (RemoteBrokerData broker : arrayOfBroker) {
+            if (!allBroker.contains(broker) && !broker.isLocal()) {
+                fireServiceRemovedEvent(broker);
+                brokersByService.remove(broker.getBrokerName());
+                LOG.trace("Delete broker : {}", broker);
+            }
+        }
 
-	@Override
-	public void setDiscoveryListener(DiscoveryListener listener) {
-		this.discoveryListener = listener;
-		LOG.trace("setDiscoveryListener {}", listener);
-	}
+        for (RemoteBrokerData broker : allBroker) {
+            RemoteBrokerData data = brokersByService.get(broker.getBrokerName());
+            if (data == null) {
+                brokersByService.put(broker.getBrokerName(), broker);
+                fireServiceAddEvent(broker);
+                LOG.trace("Add broker : {}", broker);
+            }
+        }
+    }
 
-	@Override
-	public void registerService(String service) throws IOException {
-		this.selfService = service;
-		LOG.trace("register : {}", service);
-	}
+    private void fireServiceRemovedEvent(RemoteBrokerData data) {
+        if (discoveryListener != null && started.get()) {
+            final DiscoveryEvent event = new DiscoveryEvent(data.getService());
+            event.setBrokerName(data.getBrokerName());
 
-	@Override
-	public void serviceFailed(DiscoveryEvent event) throws IOException {
+            // Have the listener process the event async so that
+            // he does not block this thread since we are doing time sensitive
+            // processing of events.
+            getExecutor().execute(new Runnable() {
+                public void run() {
+                    DiscoveryListener discoveryListener = DataBaseDiscoveryAgent.this.discoveryListener;
+                    LOG.trace("onServiceRemove send to discovery {} : {}", discoveryListener, event.getServiceName());
+                    if (discoveryListener != null) {
+                        discoveryListener.onServiceRemove(event);
+                    }
+                }
+            });
+        }
+    }
 
-		LOG.trace("serviceFailed : {}", event.getBrokerName());
+    private void fireServiceAddEvent(RemoteBrokerData data) {
+        if (discoveryListener != null && started.get()) {
 
-		RemoteBrokerData data = new RemoteBrokerData(event.getBrokerName(), event.getServiceName());
-		fireServiceRemovedEvent(data);
-		brokersByService.remove(event.getBrokerName());
-		
-		//TODO manage add/remove cycle
-	}
+            String service = data.getService();
+            if (service.contains(getHostName())) {
+                service = service.replaceAll(getHostName(), "localhost");
+            }
 
-	public int getScanInterval() {
-		return scanInterval;
-	}
+            final DiscoveryEvent event = new DiscoveryEvent(service);
+            event.setBrokerName(data.getBrokerName());
 
-	public void setScanInterval(int scanInterval) {
-		this.scanInterval = scanInterval;
-	}
+            // Have the listener process the event async so that
+            // he does not block this thread since we are doing time sensitive
+            // processing of events.
+            getExecutor().execute(new Runnable() {
+                public void run() {
+                    DiscoveryListener discoveryListener = DataBaseDiscoveryAgent.this.discoveryListener;
+                    LOG.trace("onServiceAdd send to discovery {} : {}", discoveryListener, event.getServiceName());
+                    if (discoveryListener != null) {
+                        discoveryListener.onServiceAdd(event);
+                    }
+                }
+            });
+        }
+    }
 
-	public int getMaxDelay() {
-		return maxDelay;
-	}
+    private ExecutorService getExecutor() {
+        if (executor == null) {
+            final String threadName = "Notifier-" + this.toString();
 
-	public void setMaxDelay(int maxDelay) {
-		this.maxDelay = maxDelay;
-	}
+            executor = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new ThreadFactory() {
+                public Thread newThread(Runnable runable) {
+                    Thread t = new Thread(runable, threadName);
+                    t.setDaemon(true);
+                    return t;
+                }
+            });
+        }
+        return executor;
+    }
 
-	public String getDataSource() {
-		return dataSource;
-	}
+    @Override
+    public void setDiscoveryListener(DiscoveryListener listener) {
+        this.discoveryListener = listener;
+        LOG.trace("setDiscoveryListener {}", listener);
+    }
 
-	public void setDataSource(String dataSource) {
-		this.dataSource = dataSource;
-	}
+    @Override
+    public void registerService(String service) throws IOException {
+        this.selfService = service;
+        LOG.trace("register : {}", service);
+    }
+
+    @Override
+    public void serviceFailed(DiscoveryEvent event) throws IOException {
+
+        LOG.trace("serviceFailed : {}", event.getBrokerName());
+
+        RemoteBrokerData data = new RemoteBrokerData(event.getBrokerName(), event.getServiceName());
+        fireServiceRemovedEvent(data);
+        brokersByService.remove(event.getBrokerName());
+
+        // TODO manage add/remove cycle
+    }
+
+    public int getScanInterval() {
+        return scanInterval;
+    }
+
+    public void setScanInterval(int scanInterval) {
+        this.scanInterval = scanInterval;
+    }
+
+    public int getMaxDelay() {
+        return maxDelay;
+    }
+
+    public void setMaxDelay(int maxDelay) {
+        this.maxDelay = maxDelay;
+    }
+
+    public String getDataSource() {
+        return dataSource;
+    }
+
+    public void setDataSource(String dataSource) {
+        this.dataSource = dataSource;
+    }
 
 }

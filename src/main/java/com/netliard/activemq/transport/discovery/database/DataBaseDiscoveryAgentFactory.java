@@ -31,31 +31,31 @@ import org.apache.activemq.util.URISupport;
  * Factory to create DataBaseDiscoveryAgent.
  * 
  * @author Samuel Liard
- *
+ * 
  */
 public class DataBaseDiscoveryAgentFactory extends DiscoveryAgentFactory {
 
-	/**
-	 * create DataBaseDiscoveryAgent.
-	 * 
-	 * @param uri service uri
-	 * @return the DiscoveryAgent
-	 */
-	protected DiscoveryAgent doCreateDiscoveryAgent(URI uri) throws IOException {
-		try {
+    /**
+     * create DataBaseDiscoveryAgent.
+     * 
+     * @param uri service uri
+     * @return the DiscoveryAgent
+     */
+    protected DiscoveryAgent doCreateDiscoveryAgent(URI uri) throws IOException {
+        try {
 
-			DataBaseDiscoveryAgent dba = new DataBaseDiscoveryAgent();
+            DataBaseDiscoveryAgent dba = new DataBaseDiscoveryAgent();
 
-			// allow MDA's params to be set via query arguments
-			// (e.g., multicastdb://default?dataSource=myDataSource
-			Map<String,String> options = URISupport.parseParameters(uri);
-			IntrospectionSupport.setProperties(dba, options);
+            // allow MDA's params to be set via query arguments
+            // (e.g., multicastdb://default?dataSource=myDataSource
+            Map<String, String> options = URISupport.parseParameters(uri);
+            IntrospectionSupport.setProperties(dba, options);
 
-			return dba;
+            return dba;
 
-		} catch (Throwable e) {
-			throw IOExceptionSupport.create("Could not create discovery agent: " + uri, e);
-		}
-	}
+        } catch (Throwable e) {
+            throw IOExceptionSupport.create("Could not create discovery agent: " + uri, e);
+        }
+    }
 
 }

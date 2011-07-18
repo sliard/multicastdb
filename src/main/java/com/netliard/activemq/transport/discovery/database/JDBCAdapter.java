@@ -31,11 +31,10 @@ import org.slf4j.LoggerFactory;
 import com.netliard.SpringHook;
 
 /**
- * First implementation of JDBC Adapter.
- * Work with MySQL and derby, but JDBCAdapter nee to be an interface with one implementation by database (like store)
+ * First implementation of JDBC Adapter. Work with MySQL and derby, but JDBCAdapter nee to be an interface with one implementation by database (like store)
  * 
  * @author Samuel Liard
- *
+ * 
  */
 public class JDBCAdapter {
 
@@ -133,7 +132,7 @@ public class JDBCAdapter {
 
     /**
      * Update lastHeartBeat time for a broker.
-     *  
+     * 
      * @param data Broker data
      */
     public void updateBroker(RemoteBrokerData data) {
