@@ -33,7 +33,7 @@ And use multicastdb instead of multicast
 	
 	<amq:broker xmlns="http://activemq.apache.org/schema/core" useJmx="true" persistent="false">
 		<transportConnectors>
-			<transportConnector uri="tcp://localhost:12122" discoveryUri="multicastdb://default?dataSource=myDataSource"/>
+			<transportConnector uri="tcpcloud://localhost:12122" discoveryUri="multicastdb://default?dataSource=myDataSource"/>
 		</transportConnectors>
 	</amq:broker>
 
