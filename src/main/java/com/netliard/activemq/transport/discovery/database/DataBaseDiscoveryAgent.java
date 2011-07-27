@@ -29,11 +29,15 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.apache.activemq.broker.BrokerService;
+import org.apache.activemq.broker.BrokerServiceAware;
 import org.apache.activemq.command.DiscoveryEvent;
 import org.apache.activemq.transport.discovery.DiscoveryAgent;
 import org.apache.activemq.transport.discovery.DiscoveryListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+
 
 /**
  * DiscoveryAgent that use a database to get the liste of broker.
@@ -43,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * @author Samuel Liard
  * 
  */
-public class DataBaseDiscoveryAgent implements DiscoveryAgent, Runnable {
+public class DataBaseDiscoveryAgent implements DiscoveryAgent, Runnable, BrokerServiceAware {
 
     /**
      * logger.
@@ -105,13 +109,15 @@ public class DataBaseDiscoveryAgent implements DiscoveryAgent, Runnable {
      */
     private JDBCAdapter adapter;
 
+    BrokerService brokerService;
+    
     /**
      * Define Broker identifier.
      * 
      * @return broker identifier
      */
     private String getLocalBrokerKey() {
-        return "lb-" + getHostName();
+        return "lb-" + getHostName() + "-" + selfService;
     }
 
     /**
@@ -130,8 +136,7 @@ public class DataBaseDiscoveryAgent implements DiscoveryAgent, Runnable {
         if (hostName == null) {
             try {
                 InetAddress addr = InetAddress.getLocalHost();
-                // hostName = addr.getHostAddress();
-                hostName = addr.getHostName();
+                hostName = addr.getHostAddress();
             } catch (UnknownHostException e) {
                 LOG.warn("Unable to get hostname : " + e.getMessage());
                 hostName = "Unknown";
@@ -143,7 +148,7 @@ public class DataBaseDiscoveryAgent implements DiscoveryAgent, Runnable {
     @Override
     public void start() throws Exception {
 
-        LOG.trace("Start DataBaseDiscoveryAgent");
+        LOG.info("Start DataBaseDiscoveryAgent");
 
         if (started.compareAndSet(false, true)) {
 
@@ -162,7 +167,7 @@ public class DataBaseDiscoveryAgent implements DiscoveryAgent, Runnable {
     @Override
     public void stop() throws Exception {
 
-        LOG.trace("Stop DataBaseDiscoveryAgent");
+        LOG.info("Stop DataBaseDiscoveryAgent");
 
         if (started.compareAndSet(true, false)) {
             if (runner != null) {
@@ -199,7 +204,7 @@ public class DataBaseDiscoveryAgent implements DiscoveryAgent, Runnable {
                 selfData = new RemoteBrokerData(getLocalBrokerKey(), selfService);
                 selfData.setLocal(true);
                 fireServiceAddEvent(selfData);
-                LOG.trace("Send local broker : {}", selfData);
+                LOG.info("Send local broker : {}", selfData);
 
                 String serviceWithIp = selfService;
                 int localIndex = serviceWithIp.indexOf("localhost");
@@ -210,11 +215,12 @@ public class DataBaseDiscoveryAgent implements DiscoveryAgent, Runnable {
                 }
 
                 RemoteBrokerData selfIpData = new RemoteBrokerData(getLocalBrokerKey(), serviceWithIp);
+                selfIpData.setLocal(true);
                 getAdapter().addBroker(selfIpData);
                 getAdapter().updateBroker(selfIpData);
 
                 brokersByService.put(getLocalBrokerKey(), selfIpData);
-                LOG.trace("Add self broker : {}", selfIpData);
+                LOG.info("Persist self broker : {}", selfIpData);
             } else {
                 selfData.updateHeartBeat();
                 getAdapter().updateBroker(selfData);
@@ -231,16 +237,16 @@ public class DataBaseDiscoveryAgent implements DiscoveryAgent, Runnable {
             if (!allBroker.contains(broker) && !broker.isLocal()) {
                 fireServiceRemovedEvent(broker);
                 brokersByService.remove(broker.getBrokerName());
-                LOG.trace("Delete broker : {}", broker);
+                LOG.info("Delete broker : {}", broker);
             }
         }
 
         for (RemoteBrokerData broker : allBroker) {
             RemoteBrokerData data = brokersByService.get(broker.getBrokerName());
-            if (data == null) {
+            if ((data == null) && !broker.isLocal()) {
                 brokersByService.put(broker.getBrokerName(), broker);
                 fireServiceAddEvent(broker);
-                LOG.trace("Add broker : {}", broker);
+                LOG.info("Add broker : {}", broker);
             }
         }
     }
@@ -256,7 +262,7 @@ public class DataBaseDiscoveryAgent implements DiscoveryAgent, Runnable {
             getExecutor().execute(new Runnable() {
                 public void run() {
                     DiscoveryListener discoveryListener = DataBaseDiscoveryAgent.this.discoveryListener;
-                    LOG.trace("onServiceRemove send to discovery {} : {}", discoveryListener, event.getServiceName());
+                    LOG.info("onServiceRemove send to discovery {} : {}", discoveryListener, event.getServiceName());
                     if (discoveryListener != null) {
                         discoveryListener.onServiceRemove(event);
                     }
@@ -282,7 +288,7 @@ public class DataBaseDiscoveryAgent implements DiscoveryAgent, Runnable {
             getExecutor().execute(new Runnable() {
                 public void run() {
                     DiscoveryListener discoveryListener = DataBaseDiscoveryAgent.this.discoveryListener;
-                    LOG.trace("onServiceAdd send to discovery {} : {}", discoveryListener, event.getServiceName());
+                    LOG.info("onServiceAdd send to discovery {} : {}", discoveryListener, event.getServiceName());
                     if (discoveryListener != null) {
                         discoveryListener.onServiceAdd(event);
                     }
@@ -309,25 +315,30 @@ public class DataBaseDiscoveryAgent implements DiscoveryAgent, Runnable {
     @Override
     public void setDiscoveryListener(DiscoveryListener listener) {
         this.discoveryListener = listener;
-        LOG.trace("setDiscoveryListener {}", listener);
+        LOG.info("setDiscoveryListener {}", listener);
     }
 
     @Override
     public void registerService(String service) throws IOException {
         this.selfService = service;
-        LOG.trace("register : {}", service);
+        LOG.info("register : {}", service);
     }
 
     @Override
     public void serviceFailed(DiscoveryEvent event) throws IOException {
 
-        LOG.trace("serviceFailed : {}", event.getBrokerName());
+        LOG.info("serviceFailed : {}", event.getBrokerName());
 
         RemoteBrokerData data = new RemoteBrokerData(event.getBrokerName(), event.getServiceName());
         fireServiceRemovedEvent(data);
         brokersByService.remove(event.getBrokerName());
 
         // TODO manage add/remove cycle
+    }
+    
+    @Override
+    public void setBrokerService(BrokerService brokerService) {
+        this.brokerService = brokerService;
     }
 
     public int getScanInterval() {

@@ -22,7 +22,6 @@ import java.util.Map;
 
 import org.apache.activemq.transport.discovery.DiscoveryAgent;
 import org.apache.activemq.transport.discovery.DiscoveryAgentFactory;
-import org.apache.activemq.transport.discovery.database.DataBaseDiscoveryAgent;
 import org.apache.activemq.util.IOExceptionSupport;
 import org.apache.activemq.util.IntrospectionSupport;
 import org.apache.activemq.util.URISupport;

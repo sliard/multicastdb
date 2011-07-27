@@ -92,7 +92,8 @@ public class JDBCAdapter {
     /**
      * Add a new broker.
      * 
-     * @param data Broker data
+     * @param data
+     *            Broker data
      */
     public void addBroker(RemoteBrokerData data) {
 
@@ -133,7 +134,8 @@ public class JDBCAdapter {
     /**
      * Update lastHeartBeat time for a broker.
      * 
-     * @param data Broker data
+     * @param data
+     *            Broker data
      */
     public void updateBroker(RemoteBrokerData data) {
 
@@ -172,7 +174,8 @@ public class JDBCAdapter {
     /**
      * Get all broker list.
      * 
-     * @param maxDelay minimum time in ms of last broker heartBeat
+     * @param maxDelay
+     *            minimum time in ms of last broker heartBeat
      * @return list of broker data
      */
     public Collection<RemoteBrokerData> getAllBroker(long maxDelay) {
